@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strconv"
+	"strings"
 )
 
 type ArrayFlags []string
@@ -20,11 +20,18 @@ func (i *ArrayFlags) Set(value string) error {
 	return nil
 }
 
+var quiet bool
+
 func main() {
 	var dir ArrayFlags
-	flag.Var(&dir, "d", "Directories to search for dotenv files (can be specified multiple times) (default: current directory)")
+	flag.Var(&dir, "d", "Directories to search inside (can be specified multiple times) (default: current directory)")
 	var name ArrayFlags
-	flag.Var(&name, "n", "Names of dotenv files to search for (can be specified multiple times) (default: \".env\")")
+	flag.Var(&name, "f", "Filenames to search for (can be specified multiple times) (default: \".env\")")
+	var recursive bool
+	flag.BoolVar(&recursive, "r", false, "Search directories recursively (default: false)")
+	var shell string
+	flag.StringVar(&shell, "s", "auto-detect", "Shell to generate output for (supported: bash, zsh, fish, powershell, cmd, auto-detect, none) (default: auto-detect)")
+	flag.BoolVar(&quiet, "q", false, "Suppress non-error output")
 	flag.Parse()
 
 	if len(dir) == 0 {
@@ -34,32 +41,43 @@ func main() {
 		name = append(name, ".env")
 	}
 
-	dotenvFile := SearchFile(dir, name)
+	dotenvFile := SearchFile(dir, name, recursive)
 	if dotenvFile != "" {
-		fmt.Fprintln(os.Stderr, "Using dotenv file:", dotenvFile)
+		Log("Using dotenv file:", dotenvFile)
 	} else {
-		fmt.Fprintln(os.Stderr, "No dotenv file found")
+		Error("No dotenv file found")
 	}
 
 	parser := NewParser()
 	envMap, err := parser.ParseFile(dotenvFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading dotenv file: %v\n", err)
+		Error("Error reading dotenv file:", err)
 		return
 	}
 
-	for _, variable := range envMap {
-		fmt.Println(VariableToBash(variable))
+	if shell == "auto-detect" {
+		shell = DetectShell()
+		Log("Auto-detected shell:", shell)
 	}
+
+	lines := []string{}
+
+	for _, variable := range envMap {
+		line := TransformToShellSyntax(variable, shell)
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	fmt.Print(strings.Join(lines, "\n"))
 }
 
-func SearchFile(directories, names []string) string {
+func SearchFile(directories, names []string, recursive bool) string {
 	for _, dir := range directories {
 		files, err := os.ReadDir(dir)
 		if err != nil && os.IsExist(err) {
 			continue
 		} else if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading directory %s: %v\n", dir, err)
+			Error("Error reading directory:", dir, err)
 			continue
 		}
 
@@ -70,11 +88,53 @@ func SearchFile(directories, names []string) string {
 				}
 			}
 		}
+
+		if recursive {
+			found := SearchFileInSubdirs(dir, names)
+			if found != "" {
+				return found
+			}
+		}
 	}
 	return ""
 }
 
-func VariableToBash(variable Variable) string {
-	escapedValue := strconv.Quote(variable.Value)
-	return fmt.Sprintf("export %s=%s", variable.Name, escapedValue)
+func SearchFileInSubdirs(directory string, names []string) string {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		Error("Error reading directory:", directory, err)
+		return ""
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			subdir := fmt.Sprintf("%s/%s", directory, entry.Name())
+			for _, name := range names {
+				subEntries, err := os.ReadDir(subdir)
+				if err != nil {
+					continue
+				}
+				for _, subEntry := range subEntries {
+					if subEntry.Name() == name && !subEntry.IsDir() {
+						return fmt.Sprintf("%s/%s", subdir, name)
+					}
+				}
+			}
+			found := SearchFileInSubdirs(subdir, names)
+			if found != "" {
+				return found
+			}
+		}
+	}
+	return ""
+}
+
+func Log(message ...any) {
+	if !quiet {
+		fmt.Fprintln(os.Stderr, append([]any{"[Log]"}, message...)...)
+	}
+}
+
+func Error(message ...any) {
+	fmt.Fprintln(os.Stderr, append([]any{"[Error]"}, message...)...)
 }
