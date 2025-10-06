@@ -215,11 +215,11 @@ func (p *Parser) parseQuotedValue(valuePart string) (string, error) {
 				case '\\':
 					result.WriteByte('\\')
 				case 'u':
-					if i+5 < len(valuePart) {
+					if i+5 <= len(valuePart) {
 						hexCode := valuePart[i+2 : i+6]
 						if codepoint, err := strconv.ParseInt(hexCode, 16, 32); err == nil {
 							result.WriteRune(rune(codepoint))
-							i += 5 // Skip 'u' and 4 hex digits
+							i += 6 // Skip '\', 'u' and 4 hex digits
 							continue
 						}
 					}
@@ -304,11 +304,11 @@ func (p *Parser) processEscapeSequences(value string) string {
 			case '\\':
 				result.WriteByte('\\')
 			case 'u':
-				if i+5 < len(value) {
+				if i+5 <= len(value) {
 					hexCode := value[i+2 : i+6]
 					if codepoint, err := strconv.ParseInt(hexCode, 16, 32); err == nil {
 						result.WriteRune(rune(codepoint))
-						i += 5 // Skip 'u' and 4 hex digits
+						i += 6 // Skip '\', 'u' and 4 hex digits
 						continue
 					}
 				}
@@ -340,17 +340,23 @@ func (p *Parser) interpolateVariables(value string) string {
 			if closeIndex != -1 {
 				varName := value[i+2 : i+2+closeIndex]
 
-				// Look up the variable value
+				// Look up the variable value - first check parsed variables
+				found := false
 				for _, variable := range p.variables {
 					if variable.Name == varName {
 						result.WriteString(variable.Value)
+						found = true
 						break
 					}
 				}
-				if envValue := os.Getenv(varName); envValue != "" {
-					result.WriteString(envValue)
+
+				// If not found in parsed variables, check environment
+				if !found {
+					if envValue := os.Getenv(varName); envValue != "" {
+						result.WriteString(envValue)
+					}
+					// If variable doesn't exist anywhere, substitute with empty string
 				}
-				// If variable doesn't exist, substitute with empty string
 
 				i = i + 2 + closeIndex + 1 // Skip past the }
 				continue
