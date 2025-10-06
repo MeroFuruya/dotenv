@@ -30,7 +30,7 @@ func main() {
 	var recursive bool
 	flag.BoolVar(&recursive, "r", false, "Search directories recursively (default: false)")
 	var shell string
-	flag.StringVar(&shell, "s", "auto-detect", "Shell to generate output for (supported: bash, zsh, fish, powershell, cmd, auto-detect, none) (default: auto-detect)")
+	flag.StringVar(&shell, "s", "auto-detect", "Shell to generate output for (supported: bash, zsh, fish, powershell, cmd, auto-detect, none)")
 	flag.BoolVar(&quiet, "q", false, "Suppress non-error output")
 	flag.Parse()
 
