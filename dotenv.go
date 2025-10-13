@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path"
 	"regexp"
 	"strings"
 )
@@ -31,7 +32,7 @@ func main() {
 	var recursive bool
 	flag.BoolVar(&recursive, "r", false, "Search directories recursively (default: false)")
 	var shell string
-	flag.StringVar(&shell, "s", "auto-detect", "Shell to generate output for (supported: bash, zsh, fish, powershell, cmd, auto-detect, none)")
+	flag.StringVar(&shell, "s", "auto-detect", "Shell to generate output for (supported: bash, zsh, fish, powershell, cmd, auto-detect, value, none)")
 	flag.BoolVar(&quiet, "q", false, "Suppress non-error output")
 	var filter string
 	flag.StringVar(&filter, "filter", "", "Only output variables that match this regex pattern")
@@ -98,7 +99,7 @@ func SearchFile(directories, names []string, recursive bool) string {
 		for _, name := range names {
 			for _, file := range files {
 				if file.Name() == name && !file.IsDir() {
-					return fmt.Sprintf("%s/%s", dir, name)
+					return path.Join(dir, name)
 				}
 			}
 		}
@@ -130,7 +131,7 @@ func SearchFileInSubdirs(directory string, names []string) string {
 				}
 				for _, subEntry := range subEntries {
 					if subEntry.Name() == name && !subEntry.IsDir() {
-						return fmt.Sprintf("%s/%s", subdir, name)
+						return path.Join(subdir, name)
 					}
 				}
 			}

@@ -41,6 +41,8 @@ func TransformToShellSyntax(variable Variable, shellName string) string {
 		return fmt.Sprintf("$env:%s=%s", variable.Name, value)
 	case "none":
 		return fmt.Sprintf("%s=%q", variable.Name, variable.Value)
+	case "value":
+		return variable.Value
 	default:
 		return ""
 	}
