@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -32,6 +33,8 @@ func main() {
 	var shell string
 	flag.StringVar(&shell, "s", "auto-detect", "Shell to generate output for (supported: bash, zsh, fish, powershell, cmd, auto-detect, none)")
 	flag.BoolVar(&quiet, "q", false, "Suppress non-error output")
+	var filter string
+	flag.StringVar(&filter, "filter", "", "Only output variables that match this regex pattern")
 	flag.Parse()
 
 	if len(dir) == 0 {
@@ -63,6 +66,17 @@ func main() {
 	lines := []string{}
 
 	for _, variable := range envMap {
+		if filter != "" {
+			matched, err := MatchRegex(filter, variable.Name)
+			if err != nil {
+				Error("Invalid regex pattern:", filter, err)
+				return
+			}
+			if !matched {
+				continue
+			}
+		}
+
 		line := TransformToShellSyntax(variable, shell)
 		if line != "" {
 			lines = append(lines, line)
@@ -137,4 +151,12 @@ func Log(message ...any) {
 
 func Error(message ...any) {
 	fmt.Fprintln(os.Stderr, append([]any{"[Error]"}, message...)...)
+}
+
+func MatchRegex(pattern, str string) (bool, error) {
+	matched, err := regexp.MatchString(pattern, str)
+	if err != nil {
+		return false, err
+	}
+	return matched, nil
 }
